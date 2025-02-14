@@ -18,6 +18,8 @@ from qiskit.circuit import QuantumCircuit
 from qiskit.circuit.library import PauliEvolutionGate
 from qiskit.synthesis import LieTrotter
 
+import sort_for_trotter
+
 verbose = False
 
 # Saved circuits and subcircuits for display
@@ -358,7 +360,8 @@ def create_circuit_from_op(
     use_inverse_flag: bool = False,
     init_state: str = None,
     append_measurements: bool = True,
-    optimize: bool = False
+    optimize: bool = False,
+    sort_groups: bool = False
 ):
     """
     Create a quantum circuit based on the given Hamiltonian data.
@@ -385,11 +388,19 @@ def create_circuit_from_op(
 
     #Check if ham_op is a list of lists
     if isinstance(ham_op, list) and isinstance(ham_op[0], list):
-        evo = []
-        for ham_op_group in ham_op:
-            # convert from any form to SparsePauliOp
-            ham_op_group = ensure_sparse_pauli_op(ham_op_group, num_qubits)
-            evo += [PauliEvolutionGate(ham_op_group, time=time_step, label=evo_label, synthesis=synthesis)]    
+
+        if sort_groups:
+            for i in range(len(ham_op)):
+                ham_op[i] = sort_for_trotter.sort_all_tsp(ham_op[i], mode='ladder')
+
+            evo=[sort_for_trotter.gen_circuit(ham_op, num_qubits, time_step)]
+        
+        else:
+            evo = []
+            for ham_op_group in ham_op:
+                # convert from any form to SparsePauliOp
+                ham_op_group = ensure_sparse_pauli_op(ham_op_group, num_qubits)
+                evo += [PauliEvolutionGate(ham_op_group, time=time_step, label=evo_label, synthesis=synthesis)]
     else:
         # convert from any form to SparsePauliOp
         ham_op = ensure_sparse_pauli_op(ham_op, num_qubits)
@@ -593,7 +604,8 @@ def HamiltonianSimulation(
         random_pauli_flag = False,
         random_init_flag = False,
         append_measurements = True,
-        optimize = False
+        optimize = False,
+        sort_groups = False
     ) -> QuantumCircuit:
     """
     Construct a Qiskit circuit for Hamiltonian simulation.
@@ -644,7 +656,8 @@ def HamiltonianSimulation(
             num_trotter_steps=K,
             append_measurements=append_measurements,
             use_inverse_flag=use_inverse_flag,
-            optimize=optimize
+            optimize=optimize,
+            sort_groups=sort_groups
             )
     # to generate circuits with random paulis, use the pygsti version
     else:
